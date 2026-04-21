@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+# Build output
+dist/
+# Even Hub package files
+*.ehpk
+# Environment variables
+.env
+# IDE
+.vscode/
+# OS
+.DS_Store
+Thumbs.db
+# Logs
+*.log
