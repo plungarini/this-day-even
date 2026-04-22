@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
-import { readAndBumpStreak } from '../src/services/bridge-storage';
+import { __resetProgressStoreForTests, ensureBridgeStorageReady, readAndTrackProgress } from '../src/services/bridge-storage';
 
 vi.mock('@evenrealities/even_hub_sdk', () => ({
 	waitForEvenAppBridge: vi.fn().mockRejectedValue(new Error('bridge unavailable')),
@@ -41,7 +41,7 @@ const samplePayload = {
 			credit: 'Wikimedia Commons via Marie Curie',
 		},
 		sections: [
-			{ id: 'moment', title: 'The moment', webBody: '1902: Marie Curie isolates radium.', hudPages: ['1902: Marie Curie isolates radium.'], sourceRefs: [] },
+			{ id: 'moment', title: 'The Moment', webBody: '1902: Marie Curie isolates radium.', hudPages: ['1902: Marie Curie isolates radium.'], sourceRefs: [] },
 			{ id: 'why-it-matters', title: 'Why it matters', webBody: 'It turns radioactivity into something concrete.', hudPages: ['It turns radioactivity into something concrete.'], sourceRefs: [] },
 			{ id: 'context', title: 'Context', webBody: 'The chemistry is exhausting and meticulous.', hudPages: ['The chemistry is exhausting and meticulous.'], sourceRefs: [] },
 			{ id: 'aftermath', title: 'Aftermath', webBody: 'The discovery reshapes modern science and medicine.', hudPages: ['The discovery reshapes modern science and medicine.'], sourceRefs: [] },
@@ -63,7 +63,7 @@ const samplePayload = {
 
 beforeEach(() => {
 	vi.restoreAllMocks();
-	window.localStorage.clear();
+	__resetProgressStoreForTests();
 	window.__THIS_DAY_ENV__ = { API_BASE_URL: 'http://127.0.0.1:3001' };
 });
 
@@ -79,20 +79,24 @@ describe('webview', () => {
 		render(<App />);
 
 		await waitFor(() => expect(screen.getByText(samplePayload.fact.title)).toBeInTheDocument());
-		expect(screen.getByText('The moment')).toBeInTheDocument();
+		expect(screen.getByText('The Moment')).toBeInTheDocument();
 		expect(screen.getByText('Why it matters')).toBeInTheDocument();
 		expect(screen.getByText('Context')).toBeInTheDocument();
 		expect(screen.getByText('Aftermath')).toBeInTheDocument();
 		expect(screen.getAllByText('Artifact').length).toBeGreaterThan(0);
+		expect(screen.getByText('Keep the ritual alive.')).toBeInTheDocument();
 	});
 
-	it('increments the UTC streak only once per day and survives restart via storage fallback', async () => {
-		const first = await readAndBumpStreak('2026-04-20');
-		const second = await readAndBumpStreak('2026-04-20');
-		const third = await readAndBumpStreak('2026-04-21');
-		expect(first.count).toBe(1);
-		expect(second.count).toBe(1);
-		expect(third.count).toBe(2);
+	it('tracks daily, weekly, and monthly progress without browser localStorage', async () => {
+		await ensureBridgeStorageReady();
+		const first = await readAndTrackProgress('2026-04-20');
+		const second = await readAndTrackProgress('2026-04-20');
+		const third = await readAndTrackProgress('2026-04-21');
+		expect(first.currentDailyStreak).toBe(1);
+		expect(second.currentDailyStreak).toBe(1);
+		expect(third.currentDailyStreak).toBe(2);
+		expect(third.weeklyConsistency).toBe(2);
+		expect(third.monthlyConsistency).toBe(2);
 	});
 
 	it('degrades cleanly when the payload has no hero image', async () => {
