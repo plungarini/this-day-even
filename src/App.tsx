@@ -1,7 +1,7 @@
-import { AppShell, Badge, Button, Card, Divider, Loading } from 'even-toolkit/web';
+import { AppShell, Button, Card, Divider, Loading } from 'even-toolkit/web';
 import { useEffect, useMemo, useState } from 'react';
-import { formatUtcLongDate, secondsUntilNextUtcMidnight } from '../shared/utc';
 import type { SourceRecord, TodayResponse } from '../shared/types';
+import { formatUtcLongDate, secondsUntilNextUtcMidnight } from '../shared/utc';
 import { loadToday } from './api/today';
 import { getApiBaseUrl } from './config';
 import { formatFriendlyCountdown, formatLocalReleaseTime } from './lib/time';
@@ -83,15 +83,7 @@ function TimerCard({ now }: { now: Date }) {
 	);
 }
 
-function SectionCard({
-	payload,
-	index,
-	total,
-}: {
-	payload: TodayResponse;
-	index: number;
-	total: number;
-}) {
+function SectionCard({ payload, index, total }: { payload: TodayResponse; index: number; total: number }) {
 	const section = payload.fact.sections[index];
 	const sources = sourceIndex(payload.sources);
 	if (!section) return null;
@@ -233,9 +225,6 @@ export default function App() {
 							<div className="td-hero-copy">
 								<div className="td-status-row">
 									<div className="td-pill-row">
-										<Pill tone={payload.isFallback ? 'muted' : 'accent'}>
-											{payload.isFallback ? 'Fallback' : 'Live artifact'}
-										</Pill>
 										{payload.fact.taxonomy.categories.map((category) => (
 											<Pill key={category}>{category}</Pill>
 										))}
