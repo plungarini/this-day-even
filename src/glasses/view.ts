@@ -48,7 +48,7 @@ const TEXT_LAYOUT: HudLayoutDescriptor = {
 
 const SECTION_DISPLAY_TITLES: Record<HudPage['sectionId'], string> = {
 	moment: 'The Moment',
-	'why-it-matters': 'Why it matters',
+	'why-it-matters': 'Why it Matters',
 	context: 'Context',
 	aftermath: 'Aftermath',
 	artifact: 'Artifact',
@@ -86,11 +86,15 @@ function buildFooter(page: HudPage): string {
 function buildBody(page: HudPage, payload: TodayResponse | null): string {
 	if (!payload) return page.body;
 
-	if (page.sectionId === 'moment') {
-		return `\n${centerLine(`The Moment • ${payload.fact.year}`, BODY_WIDTH)}\n\n${page.body}`;
+	if (page.sectionPageIndex > 0) {
+		return `\n${page.body}`;
 	}
 
-	return `${centerLine(page.sectionTitle, BODY_WIDTH)}\n\n${page.body}`;
+	if (page.sectionId === 'moment') {
+		return `\n${centerLine(`•    The Moment - ${payload.fact.year}    •`, BODY_WIDTH)}\n\n${page.body}`;
+	}
+
+	return `\n${centerLine(`•    ${page.sectionTitle}    •`, BODY_WIDTH)}\n\n${page.body}`;
 }
 
 export function createLoadingHudState(): HudViewState {
@@ -157,7 +161,7 @@ export function toHudRenderState(state: HudViewState): HudRenderState {
 			layout: TEXT_LAYOUT,
 			textContents: {
 				header,
-				body: `${centerLine('Preparing the daily artifact', BODY_WIDTH)}\n\nFetching the UTC moment and formatting the section deck for the HUD.`,
+				body: `\n${centerLine('Preparing the daily artifact', BODY_WIDTH)}\n\nFetching the UTC moment and formatting the section deck for the HUD.`,
 				footer: 'Moment 0/0',
 			},
 		};
@@ -168,7 +172,7 @@ export function toHudRenderState(state: HudViewState): HudRenderState {
 			layout: TEXT_LAYOUT,
 			textContents: {
 				header,
-				body: `${centerLine('History missed its cue', BODY_WIDTH)}\n\n${state.errorMessage || 'The HUD could not load the daily artifact.'}`,
+				body: `\n${centerLine('History missed its cue', BODY_WIDTH)}\n\n${state.errorMessage || 'The HUD could not load the daily artifact.'}`,
 				footer: 'Tap to retry tomorrow',
 			},
 		};
