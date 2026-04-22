@@ -2,7 +2,6 @@ import { OsEventTypeList, type EvenHubEvent, waitForEvenAppBridge } from '@evenr
 import { toMonthDayKey } from '../shared/utc';
 import { loadToday } from './api/today';
 import { getApiBaseUrl } from './config';
-import { HudImageController } from './glasses/image-controller';
 import { HudSession } from './glasses/session';
 import type { HudViewState } from './glasses/types';
 import { createErrorHudState, createLoadingHudState, createReadyHudState, resetHudState, stepHudState, toHudRenderState, touchHudClock } from './glasses/view';
@@ -10,7 +9,6 @@ import { createErrorHudState, createLoadingHudState, createReadyHudState, resetH
 let state: HudViewState = createLoadingHudState();
 let bridgeRef: Awaited<ReturnType<typeof waitForEvenAppBridge>> | null = null;
 let session: HudSession | null = null;
-let imageController: HudImageController | null = null;
 let currentLayoutKey = '';
 
 function resolveEventType(event: EvenHubEvent) {
@@ -20,14 +18,8 @@ function resolveEventType(event: EvenHubEvent) {
 async function render(): Promise<void> {
 	if (!session) return;
 	const next = toHudRenderState(state);
-	const layoutChanged = next.layout.key !== currentLayoutKey;
 	await session.render(next);
 	currentLayoutKey = next.layout.key;
-
-	if (next.imageUrl && imageController) {
-		if (layoutChanged) imageController.reset();
-		await imageController.renderUrl(next.imageUrl);
-	}
 }
 
 async function refreshPayload(): Promise<void> {
@@ -71,7 +63,6 @@ async function boot(): Promise<void> {
 	try {
 		bridgeRef = await waitForEvenAppBridge();
 		session = new HudSession(bridgeRef);
-		imageController = new HudImageController(bridgeRef);
 		bridgeRef.onEvenHubEvent((event) => {
 			void handleEvent(event);
 		});
