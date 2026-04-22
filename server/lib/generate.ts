@@ -3,10 +3,11 @@ import type { ArtifactEnrichment, SourceRecord, TodayResponse, WikimediaCandidat
 import { scoreCandidatesWithModel, writeArtifactWithModel } from './openrouter';
 import { buildArtifactResponse, buildMinimalFallback, chooseWinner, shortlistCandidates } from './seed';
 import { fetchLocSnippet, fetchOpenLibrary, fetchWikimediaCandidates, fetchWikimediaEnrichment } from './source-providers';
-import { readStoredArtifact, writeStoredArtifact } from './storage';
+import { deleteStoredArtifact, readStoredArtifact, writeStoredArtifact } from './storage';
 
 export interface WorkerBindings {
 	THIS_DAY_KV?: KVNamespace;
+	THIS_DAY_DB?: D1Database;
 	OPENROUTER_API_KEY?: string;
 	OPENROUTER_SCORER_MODEL?: string;
 	OPENROUTER_WRITER_MODEL?: string;
@@ -14,6 +15,9 @@ export interface WorkerBindings {
 	OPENROUTER_WRITER_THINKING?: string;
 	APP_BASE_URL?: string;
 	APP_NAME?: string;
+	ACCESS_PHASE?: 'free' | 'gated';
+	TRIAL_DAYS?: string;
+	PAYMENTS_PROVIDER?: string;
 }
 
 function leadTitle(candidate: WikimediaCandidate): string {
@@ -134,6 +138,14 @@ export async function getTodayArtifact(env: WorkerBindings, date = new Date()): 
 	} catch {
 		return buildMinimalFallback(toUtcDateString(date), key);
 	}
+}
+
+export async function regenerateTodayArtifact(env: WorkerBindings, date = new Date()): Promise<TodayResponse> {
+	const key = toMonthDayKey(date);
+	await deleteStoredArtifact(env, key);
+	const generated = await generateArtifact(env, date);
+	await writeStoredArtifact(env, key, generated);
+	return generated;
 }
 
 async function refreshOne(env: WorkerBindings, date: Date): Promise<void> {

@@ -2,10 +2,19 @@ import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
-import { readAndBumpStreak } from '../src/services/bridge-storage';
+import { __resetProgressStoreForTests, ensureBridgeStorageReady, readAndTrackProgress } from '../src/services/bridge-storage';
+import { __resetIdentityStoreForTests, getEvenIdentity } from '../src/services/identity';
+
+const mockGetLocalStorage = vi.fn(async () => '');
+const mockSetLocalStorage = vi.fn(async () => true);
+const mockGetUserInfo = vi.fn(async () => ({ uid: 42, country: 'IT' }));
 
 vi.mock('@evenrealities/even_hub_sdk', () => ({
-	waitForEvenAppBridge: vi.fn().mockRejectedValue(new Error('bridge unavailable')),
+	waitForEvenAppBridge: vi.fn(async () => ({
+		getLocalStorage: mockGetLocalStorage,
+		setLocalStorage: mockSetLocalStorage,
+		getUserInfo: mockGetUserInfo,
+	})),
 }));
 
 vi.mock('even-toolkit/web', () => ({
@@ -41,7 +50,7 @@ const samplePayload = {
 			credit: 'Wikimedia Commons via Marie Curie',
 		},
 		sections: [
-			{ id: 'moment', title: 'The moment', webBody: '1902: Marie Curie isolates radium.', hudPages: ['1902: Marie Curie isolates radium.'], sourceRefs: [] },
+			{ id: 'moment', title: 'The Moment', webBody: '1902: Marie Curie isolates radium.', hudPages: ['1902: Marie Curie isolates radium.'], sourceRefs: [] },
 			{ id: 'why-it-matters', title: 'Why it matters', webBody: 'It turns radioactivity into something concrete.', hudPages: ['It turns radioactivity into something concrete.'], sourceRefs: [] },
 			{ id: 'context', title: 'Context', webBody: 'The chemistry is exhausting and meticulous.', hudPages: ['The chemistry is exhausting and meticulous.'], sourceRefs: [] },
 			{ id: 'aftermath', title: 'Aftermath', webBody: 'The discovery reshapes modern science and medicine.', hudPages: ['The discovery reshapes modern science and medicine.'], sourceRefs: [] },
@@ -61,38 +70,86 @@ const samplePayload = {
 	sources: [],
 };
 
+const sampleMePayload = {
+	user: {
+		appUserId: 'user-1',
+		evenUid: '42',
+		country: 'IT',
+		lastSeenAt: '2026-04-20T00:00:00.000Z',
+		firstSeenAt: '2026-04-20T00:00:00.000Z',
+	},
+	access: {
+		phase: 'free',
+		state: 'trial_active',
+		accessAllowed: true,
+		trialStartedAt: '2026-04-20T00:00:00.000Z',
+		trialEndsAt: '2026-04-27T00:00:00.000Z',
+		activeUntil: null,
+		appUserId: 'user-1',
+		evenUid: '42',
+	},
+};
+
 beforeEach(() => {
 	vi.restoreAllMocks();
-	window.localStorage.clear();
+	__resetProgressStoreForTests();
+	__resetIdentityStoreForTests();
+	mockGetLocalStorage.mockResolvedValue('');
+	mockSetLocalStorage.mockResolvedValue(true);
+	mockGetUserInfo.mockResolvedValue({ uid: 42, country: 'IT' });
 	window.__THIS_DAY_ENV__ = { API_BASE_URL: 'http://127.0.0.1:3001' };
 });
 
 describe('webview', () => {
 	it('renders all five sections from the today payload', async () => {
-		vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response(JSON.stringify(samplePayload), {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			if (String(input).includes('/api/me')) {
+				return new Response(JSON.stringify(sampleMePayload), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' },
+				});
+			}
+
+			return new Response(JSON.stringify(samplePayload), {
 				status: 200,
 				headers: { 'Content-Type': 'application/json' },
-			}),
-		);
+			});
+		});
 
 		render(<App />);
 
 		await waitFor(() => expect(screen.getByText(samplePayload.fact.title)).toBeInTheDocument());
-		expect(screen.getByText('The moment')).toBeInTheDocument();
+		expect(screen.getByText('The Moment')).toBeInTheDocument();
 		expect(screen.getByText('Why it matters')).toBeInTheDocument();
 		expect(screen.getByText('Context')).toBeInTheDocument();
 		expect(screen.getByText('Aftermath')).toBeInTheDocument();
 		expect(screen.getAllByText('Artifact').length).toBeGreaterThan(0);
+		expect(screen.getByText('Keep the ritual alive.')).toBeInTheDocument();
+		expect(screen.queryByText('Your daily access.')).not.toBeInTheDocument();
+		const todayCall = fetchSpy.mock.calls.find((call) => String(call[0]).includes('/api/today'));
+		const options = todayCall?.[1] as RequestInit | undefined;
+		expect(todayCall).toBeTruthy();
+		expect(options?.headers).toBeInstanceOf(Headers);
+		expect((options?.headers as Headers).get('X-Even-User-Uid')).toBe('42');
 	});
 
-	it('increments the UTC streak only once per day and survives restart via storage fallback', async () => {
-		const first = await readAndBumpStreak('2026-04-20');
-		const second = await readAndBumpStreak('2026-04-20');
-		const third = await readAndBumpStreak('2026-04-21');
-		expect(first.count).toBe(1);
-		expect(second.count).toBe(1);
-		expect(third.count).toBe(2);
+	it('tracks daily, weekly, and monthly progress without browser localStorage', async () => {
+		await ensureBridgeStorageReady();
+		const first = await readAndTrackProgress('2026-04-20');
+		const second = await readAndTrackProgress('2026-04-20');
+		const third = await readAndTrackProgress('2026-04-21');
+		expect(first.currentDailyStreak).toBe(1);
+		expect(second.currentDailyStreak).toBe(1);
+		expect(third.currentDailyStreak).toBe(2);
+		expect(third.weeklyConsistency).toBe(2);
+		expect(third.monthlyConsistency).toBe(2);
+	});
+
+	it('caches the Even uid through bridge storage and reuses it', async () => {
+		const identity = await getEvenIdentity();
+		expect(identity.evenUid).toBe('42');
+		expect(identity.country).toBe('IT');
+		expect(mockSetLocalStorage).toHaveBeenCalled();
 	});
 
 	it('degrades cleanly when the payload has no hero image', async () => {
@@ -110,9 +167,52 @@ describe('webview', () => {
 				headers: { 'Content-Type': 'application/json' },
 			}),
 		);
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			if (String(input).includes('/api/me')) {
+				return new Response(JSON.stringify(sampleMePayload), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' },
+				});
+			}
+
+			return new Response(JSON.stringify(noImagePayload), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		});
 
 		render(<App />);
 		await waitFor(() => expect(screen.getByText(noImagePayload.fact.title)).toBeInTheDocument());
 		expect(screen.queryByAltText('Marie Curie portrait')).not.toBeInTheDocument();
+	});
+
+	it('shows the access widget only once paid mode is enabled', async () => {
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			if (String(input).includes('/api/me')) {
+				return new Response(
+					JSON.stringify({
+						...sampleMePayload,
+						access: {
+							...sampleMePayload.access,
+							phase: 'gated',
+							state: 'trial_active',
+						},
+					}),
+					{
+						status: 200,
+						headers: { 'Content-Type': 'application/json' },
+					},
+				);
+			}
+
+			return new Response(JSON.stringify(samplePayload), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		});
+
+		render(<App />);
+		await waitFor(() => expect(screen.getByText('Your daily access.')).toBeInTheDocument());
+		expect(screen.getByText(/Free trial ends/i)).toBeInTheDocument();
 	});
 });

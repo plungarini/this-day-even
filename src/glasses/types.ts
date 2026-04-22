@@ -24,8 +24,6 @@ export interface HudLayoutDescriptor {
 export interface HudRenderState {
 	layout: HudLayoutDescriptor;
 	textContents: Record<string, string>;
-	imageUrl?: string;
-	imageAlt?: string;
 }
 
 export interface HudPage {
@@ -36,7 +34,6 @@ export interface HudPage {
 	sectionPageTotal: number;
 	globalIndex: number;
 	globalTotal: number;
-	usesHeroImage: boolean;
 }
 
 export interface HudViewState {

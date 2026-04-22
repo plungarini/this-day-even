@@ -35,6 +35,23 @@ export function alignRow(left: string, right: string, innerWidthPx: number): str
 	return `${left}${spacesForPx(available)}${right}`;
 }
 
+export function alignThree(left: string, center: string, right: string, innerWidthPx: number): string {
+	const leftWidth = getTextWidth(left);
+	const centerWidth = getTextWidth(center);
+	const rightWidth = getTextWidth(right);
+	const centerStart = Math.max(0, Math.floor((innerWidthPx - centerWidth) / 2));
+	const leftEnd = leftWidth + 4;
+	const rightStart = Math.max(centerStart + centerWidth + 4, innerWidthPx - rightWidth);
+
+	if (leftEnd >= centerStart || centerStart + centerWidth >= rightStart) {
+		return alignRow(`${left} ${center}`, right, innerWidthPx);
+	}
+
+	const gapAfterLeft = centerStart - leftEnd;
+	const gapAfterCenter = rightStart - (centerStart + centerWidth);
+	return `${left}${spacesForPx(gapAfterLeft)}${center}${spacesForPx(gapAfterCenter)}${right}`;
+}
+
 export function centerLine(text: string, innerWidthPx: number): string {
 	const leftPx = Math.max(0, (innerWidthPx - getTextWidth(text) - 4) / 2);
 	return `${spacesForPx(leftPx)}${text}`;

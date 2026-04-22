@@ -8,20 +8,30 @@ enabled = true
 
 [vars]
 APP_NAME = "This Day"
-APP_BASE_URL = "http://127.0.0.1:3001"
+APP_BASE_URL = "https://this-day-even.plungarini.workers.dev"
 OPENROUTER_SCORER_MODEL = "google/gemini-3.1-flash-lite-preview"
 OPENROUTER_WRITER_MODEL = "google/gemini-3.1-pro-preview"
 OPENROUTER_SCORER_THINKING = "low"
 OPENROUTER_WRITER_THINKING = "medium"
+ACCESS_PHASE = "free"
+TRIAL_DAYS = "7"
+PAYMENTS_PROVIDER = ""
 
 [[kv_namespaces]]
 binding = "THIS_DAY_KV"
 id = "00000000000000000000000000000000"
 preview_id = "11111111111111111111111111111111"
 
+[[d1_databases]]
+binding = "THIS_DAY_DB"
+database_name = "this-day-db"
+database_id = "00000000-0000-0000-0000-000000000000"
+preview_database_id = "11111111-1111-1111-1111-111111111111"
+
 [triggers]
 crons = ["0 0 * * *"]
 
 [env.dev.vars]
 APP_BASE_URL = "http://127.0.0.1:3001"
+ACCESS_PHASE = "free"
 

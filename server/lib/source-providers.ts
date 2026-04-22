@@ -32,6 +32,31 @@ function normalizeTitle(title: string): string {
 	return title.trim().replace(/\s+/g, '_');
 }
 
+export function cleanLocSnippet(text: string): string {
+	const normalized = text
+		.replace(/\r\n/g, ' ')
+		.replace(/^\s*(?:Page\s+\d+\s+)+/i, '')
+		.replace(/^\s*(?:Image\s+\d+\s+of\s+[^.]+\.\s*)+/i, '')
+		.replace(/^\s*(?:Atrocity Stories Multiply Daily|Commentator of the Community Council[^.]*\.)\s*/i, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	const firstSentence = normalized.match(/^[^.?!]+[.?!]/)?.[0]?.trim();
+	const candidate = (firstSentence || normalized.slice(0, 220)).trim();
+	if (/\b\w+_\w+\b/.test(candidate)) return '';
+	const tokens = candidate.split(/\s+/).filter(Boolean);
+	const weirdTokens = tokens.filter((token) => {
+		const plain = token.replace(/[^A-Za-z0-9]/g, '');
+		if (plain.length < 4) return false;
+		const hasDigit = /\d/.test(plain);
+		const hasLower = /[a-z]/.test(plain);
+		const hasUpper = /[A-Z]/.test(plain);
+		const vowelCount = (plain.match(/[aeiou]/gi) || []).length;
+		return hasDigit || (hasLower && hasUpper && vowelCount <= 1) || (!hasLower && hasUpper && plain.length >= 8);
+	});
+	if (weirdTokens.length >= 3 || weirdTokens.length / Math.max(tokens.length, 1) > 0.2) return '';
+	return candidate;
+}
+
 function normalizePage(page: Record<string, unknown>): WikimediaCandidatePage {
 	const title = String(page.title ?? page.normalizedtitle ?? 'Unknown page');
 	const thumbnail = page.thumbnail as Record<string, unknown> | undefined;
@@ -130,7 +155,7 @@ export async function fetchLocSnippet(query: string, year: number): Promise<Arti
 		if (!match) return undefined;
 
 		const descriptionArray = Array.isArray(match.description) ? match.description : [];
-		const description = descriptionArray.length > 0 ? String(descriptionArray[0]) : '';
+		const description = descriptionArray.length > 0 ? cleanLocSnippet(String(descriptionArray[0])) : '';
 		const title = Array.isArray(match.title) ? String(match.title[0]) : String(match.title ?? 'Historical archive');
 		const itemUrl = Array.isArray(match.url) ? String(match.url[0]) : String(match.url ?? '');
 		if (!itemUrl) return undefined;

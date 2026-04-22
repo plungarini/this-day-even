@@ -1,18 +1,19 @@
 {
-  "package_id": "com.plungarini.thisday",
-  "edition": "202601",
-  "name": "This Day",
-  "version": "0.1.0",
-  "min_app_version": "0.1.0",
-  "min_sdk_version": "0.0.9",
-  "tagline": "One addictive historical moment every day.",
-  "entrypoint": "index.html",
-  "description": "A daily history ritual for Even Realities glasses, generated from live sources and adapted for both the WebView and the HUD.",
-  "author": "Pietro Lungarini",
-  "permissions": {
-    "network": ["*"]
-  },
-  "supported_languages": [
-    "en"
-  ]
+	"author": "Pietro Lungarini",
+	"description": "A daily history ritual for Even Realities glasses, generated from live sources and adapted for both the WebView and the HUD.",
+	"edition": "202601",
+	"entrypoint": "index.html",
+	"min_app_version": "0.1.0",
+	"min_sdk_version": "0.0.9",
+	"name": "This Day",
+	"package_id": "com.plungarini.thisday",
+	"permissions": [
+		{
+			"desc": "This Day needs network access for loading the daily artifact.",
+			"name": "network"
+		}
+	],
+	"supported_languages": ["en"],
+	"tagline": "One addictive historical moment every day.",
+	"version": "0.1.0"
 }

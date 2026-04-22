@@ -1,7 +1,7 @@
-import type { TodayResponse } from '../../shared/types';
+import type { MeResponse } from '../../shared/types';
 import { getEvenIdentity } from '../services/identity';
 
-export async function loadToday(apiBaseUrl: string): Promise<TodayResponse> {
+export async function loadMe(apiBaseUrl: string): Promise<MeResponse> {
 	const identity = await getEvenIdentity();
 	const headers = new Headers({
 		Accept: 'application/json',
@@ -16,11 +16,10 @@ export async function loadToday(apiBaseUrl: string): Promise<TodayResponse> {
 		headers.set('X-Even-User-Country', identity.country);
 	}
 
-	const response = await fetch(`${apiBaseUrl}/api/today?ts=${Date.now()}`, {
+	const response = await fetch(`${apiBaseUrl}/api/me?ts=${Date.now()}`, {
 		cache: 'no-store',
 		headers,
 	});
-	if (!response.ok) throw new Error(`This Day API returned ${response.status}`);
-	return (await response.json()) as TodayResponse;
+	if (!response.ok) throw new Error(`This Day account API returned ${response.status}`);
+	return (await response.json()) as MeResponse;
 }
-
