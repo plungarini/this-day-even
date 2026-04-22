@@ -8,7 +8,7 @@ enabled = true
 
 [vars]
 APP_NAME = "This Day"
-APP_BASE_URL = "http://127.0.0.1:3001"
+APP_BASE_URL = "https://this-day-even.plungarini.workers.dev"
 OPENROUTER_SCORER_MODEL = "google/gemini-3.1-flash-lite-preview"
 OPENROUTER_WRITER_MODEL = "google/gemini-3.1-pro-preview"
 OPENROUTER_SCORER_THINKING = "low"
