@@ -1,0 +1,8 @@
+OPENROUTER_API_KEY="replace-me"
+OPENROUTER_SCORER_MODEL="google/gemini-3.1-flash-lite-preview"
+OPENROUTER_WRITER_MODEL="google/gemini-3.1-pro-preview"
+OPENROUTER_SCORER_THINKING="low"
+OPENROUTER_WRITER_THINKING="medium"
+APP_BASE_URL="http://127.0.0.1:3001"
+APP_NAME="This Day"
+
