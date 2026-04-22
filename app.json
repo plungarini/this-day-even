@@ -1,16 +1,18 @@
 {
   "package_id": "com.plungarini.thisday",
-  "name": "This Day",
-  "version": "0.0.0",
   "edition": "202601",
+  "name": "This Day",
+  "version": "0.1.0",
+  "min_app_version": "0.1.0",
+  "min_sdk_version": "0.0.9",
+  "tagline": "One addictive historical moment every day.",
   "entrypoint": "index.html",
-  "description": "This Day app for Even Realities glasses",
-  "author": "plungarini",
-  "permissions": [],
+  "description": "A daily history ritual for Even Realities glasses, generated from live sources and adapted for both the WebView and the HUD.",
+  "author": "Pietro Lungarini",
+  "permissions": {
+    "network": ["*"]
+  },
   "supported_languages": [
     "en"
-  ],
-  "tagline": "",
-  "min_app_version": "2.1.1",
-  "min_sdk_version": "0.0.9"
+  ]
 }

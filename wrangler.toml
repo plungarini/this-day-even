@@ -1,0 +1,27 @@
+name = "this-day-even"
+main = "server/index.ts"
+compatibility_date = "2026-04-22"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[vars]
+APP_NAME = "This Day"
+APP_BASE_URL = "http://127.0.0.1:3001"
+OPENROUTER_SCORER_MODEL = "google/gemini-3.1-flash-lite-preview"
+OPENROUTER_WRITER_MODEL = "google/gemini-3.1-pro-preview"
+OPENROUTER_SCORER_THINKING = "low"
+OPENROUTER_WRITER_THINKING = "medium"
+
+[[kv_namespaces]]
+binding = "THIS_DAY_KV"
+id = "00000000000000000000000000000000"
+preview_id = "11111111111111111111111111111111"
+
+[triggers]
+crons = ["0 0 * * *"]
+
+[env.dev.vars]
+APP_BASE_URL = "http://127.0.0.1:3001"
+

@@ -6,6 +6,8 @@ dist/
 *.ehpk
 # Environment variables
 .env
+.env*
+.dev.vars*
 # IDE
 .vscode/
 # OS
@@ -13,3 +15,5 @@ dist/
 Thumbs.db
 # Logs
 *.log
+.wrangler/
+coverage/

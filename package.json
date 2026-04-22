@@ -1,36 +1,49 @@
 {
   "name": "this-day-even",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "tsc && vite build",
-    "qr": "node ../../scripts/qr.mjs",
+    "dev": "concurrently -n QR,VITE,SERVER -c cyan,green,yellow \"npm run qr\" \"vite --host 0.0.0.0 --port 5173\" \"npm run server\"",
+    "emulator": "npx evenhub-simulator http://localhost:5173/",
     "pack": "npm run build && evenhub pack app.json dist -o this-day.ehpk",
-    "emulator": "npx evenhub-simulator http://localhost:5173/"
+    "qr": "node ../../scripts/qr.mjs",
+    "server": "wrangler dev --port 3001 --ip 0.0.0.0 --test-scheduled",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "backfill": "tsx scripts/backfill.ts"
   },
   "dependencies": {
+    "@evenrealities/even_hub_sdk": "^0.0.10",
+    "@evenrealities/pretext": "^0.1.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "even-toolkit": "^1.5.0",
+    "hono": "^4.12.9",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router": "^7.13.2",
     "tailwind-merge": "^3.0.0",
-    "upng-js": "^2.1.0"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@evenrealities/even_hub_sdk": "^0.0.10",
+    "@cloudflare/workers-types": "^4.20260329.1",
     "@evenrealities/evenhub-cli": "^0.1.12",
     "@evenrealities/evenhub-simulator": "^0.7.2",
-    "@tailwindcss/vite": "^4.2.2",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
-    "tailwindcss": "^4.2.2",
-    "typescript": "~5.0.0",
-    "vite": "^8.0.3"
+    "concurrently": "^9.1.2",
+    "jsdom": "^26.1.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.6.3",
+    "vite": "^8.0.3",
+    "vitest": "^2.1.9",
+    "wrangler": "^4.77.0"
   }
 }

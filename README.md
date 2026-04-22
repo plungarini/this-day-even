@@ -1,36 +1,30 @@
 # This Day
 
-Even Realities glasses app built with [even-toolkit](https://github.com/fabioglimb/even-toolkit).
+`This Day` is an Even Hub app for the Even Realities G2 glasses. It serves one UTC-canonical historical moment per day from a Cloudflare Worker and renders it in two modes:
 
-## Structure
+- a richly styled WebView companion built with `even-toolkit`
+- a manual-paginated HUD built with the official Even SDK
 
-```
-src/
-  glasses/                  — Glasses display layer
-    shared.ts               — AppSnapshot + AppActions types
-    selectors.ts            — Screen router wiring
-    splash.ts               — Splash screen
-    AppGlasses.tsx          — Glasses connection component (mount at root)
-    screens/
-      {page}/                 — Screen
-        {page}.ts             — Logic container (component class)
-        {Page}View.ts         — Pure display function (component template)
-  App.tsx                   — Web UI root
-  main.tsx                  — Entry point
-  app.css                   — Tailwind + even-toolkit theme imports
-```
+## Scripts
 
-## Dev
+- `npm run dev` starts QR, Vite, and Wrangler together
+- `npm run server` starts the Cloudflare Worker locally on port `3001`
+- `npm run backfill` generates and optionally uploads all `MM-DD` artifacts
+- `npm run test` runs unit tests
+- `npm run pack` builds an `.ehpk`
 
-```bash
-npm run dev      # start dev server at localhost:5173
-npm run build    # production build
-npm run pack     # build + package as .ehpk for Even Hub
-npm run qr       # show QR code for sideloading
-```
+## Worker config
 
-## Adding a screen
+The Worker expects:
 
-1. Create `src/glasses/screens/<name>/` with `<name>.ts` (logic) and `<Name>View.ts` (display)
-2. Register it in `src/glasses/selectors.ts`
-3. Add a route pattern to `deriveScreen` in `AppGlasses.tsx`
+- `OPENROUTER_API_KEY` as a Cloudflare secret or `.dev.vars` entry
+- `THIS_DAY_KV` bound to a real KV namespace before deployment
+
+The checked-in `wrangler.toml` uses placeholder KV ids so the app structure is complete in-repo. Replace them with real namespace ids before deploying.
+
+## Product rules
+
+- one public endpoint: `GET /api/today`
+- one UTC fact per day
+- English-only v1
+- fixed section order: `moment`, `why-it-matters`, `context`, `aftermath`, `artifact`
