@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TodayResponse } from '../shared/types';
 import worker from '../server/index';
 import { generateArtifact, refreshScheduledArtifacts, type WorkerBindings } from '../server/lib/generate';
+import { __resetAccessStoreForTests, buildMeResponse, getOrCreateUser, ingestPaymentWebhook, resolveAccess } from '../server/lib/access';
 import { cleanLocSnippet, fetchLocSnippet, fetchWikimediaCandidates } from '../server/lib/source-providers';
 import { buildArtifactResponse } from '../server/lib/seed';
 import { writerDraftSchema } from '../server/lib/schemas';
@@ -42,10 +43,13 @@ function createJsonResponse(payload: unknown) {
 const baseEnv: WorkerBindings = {
 	APP_BASE_URL: 'http://127.0.0.1:3001',
 	APP_NAME: 'This Day',
+	ACCESS_PHASE: 'free',
+	TRIAL_DAYS: '7',
 };
 
 beforeEach(() => {
 	vi.restoreAllMocks();
+	__resetAccessStoreForTests();
 });
 
 describe('worker pipeline', () => {
@@ -132,6 +136,131 @@ describe('worker pipeline', () => {
 		const secondPayload = (await second.json()) as TodayResponse;
 		expect(secondPayload.key).toBe(firstPayload.key);
 		expect(secondPayload.fact.title).toBe(firstPayload.fact.title);
+	});
+
+	it('creates a tracked user and starts the trial on the first identity-backed request', async () => {
+		vi.spyOn(globalThis, 'fetch')
+			.mockResolvedValueOnce(createJsonResponse(sampleWikimediaPayload))
+			.mockResolvedValueOnce(
+				createJsonResponse({
+					extract: 'Marie Curie pioneered research on radioactivity and chemistry.',
+					description: 'Polish and naturalized-French physicist and chemist',
+					thumbnail: {
+						source: 'https://upload.wikimedia.org/example.jpg',
+						width: 320,
+						height: 180,
+					},
+				}),
+			)
+			.mockResolvedValueOnce(createJsonResponse({ results: [] }))
+			.mockResolvedValueOnce(createJsonResponse({ docs: [] }));
+
+		const request = new Request('http://127.0.0.1:3001/api/today', {
+			headers: {
+				'X-Even-User-Uid': '12345',
+				'X-Even-User-Country': 'IT',
+			},
+		});
+		const ctx = { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
+		const response = await worker.fetch(request, baseEnv, ctx);
+		expect(response.status).toBe(200);
+
+		const me = await buildMeResponse(baseEnv, { evenUid: '12345', country: 'IT' });
+		expect(me.user.evenUid).toBe('12345');
+		expect(me.user.appUserId).toBeTruthy();
+		expect(me.access.state).toBe('trial_active');
+		expect(me.access.trialStartedAt).toBeTruthy();
+		expect(me.access.trialEndsAt).toBeTruthy();
+	});
+
+	it('does not restart the trial on repeat requests', async () => {
+		const firstDate = new Date('2026-04-20T00:00:00.000Z');
+		const secondDate = new Date('2026-04-22T00:00:00.000Z');
+		const firstUser = await getOrCreateUser(baseEnv, { evenUid: 'repeat-user' }, firstDate);
+		const secondUser = await getOrCreateUser(baseEnv, { evenUid: 'repeat-user' }, secondDate);
+		expect(secondUser?.trialStartedAt).toBe(firstUser?.trialStartedAt);
+		expect(secondUser?.trialEndsAt).toBe(firstUser?.trialEndsAt);
+		expect(secondUser?.lastSeenAt).toBe(secondDate.toISOString());
+	});
+
+	it('serves active trial users in gated mode and denies expired ones without a paid grant', async () => {
+		const gatedEnv: WorkerBindings = { ...baseEnv, ACCESS_PHASE: 'gated' };
+		await getOrCreateUser(gatedEnv, { evenUid: 'trial-live' }, new Date('2026-04-20T00:00:00.000Z'));
+		await getOrCreateUser(gatedEnv, { evenUid: 'trial-dead' }, new Date('2026-04-01T00:00:00.000Z'));
+
+		const active = await resolveAccess(gatedEnv, { evenUid: 'trial-live' }, new Date('2026-04-22T00:00:00.000Z'));
+		const expired = await resolveAccess(gatedEnv, { evenUid: 'trial-dead' }, new Date('2026-04-22T00:00:00.000Z'));
+
+		expect(active.accessAllowed).toBe(true);
+		expect(active.state).toBe('trial_active');
+		expect(expired.accessAllowed).toBe(false);
+		expect(expired.state).toBe('no_access');
+	});
+
+	it('makes paid monthly access override an expired trial and keeps webhook ingestion idempotent', async () => {
+		const gatedEnv: WorkerBindings = { ...baseEnv, ACCESS_PHASE: 'gated' };
+		await getOrCreateUser(gatedEnv, { evenUid: 'paid-user' }, new Date('2026-04-01T00:00:00.000Z'));
+
+		const first = await ingestPaymentWebhook(
+			gatedEnv,
+			{
+				id: 'evt_1',
+				provider: 'test-crypto',
+				type: 'subscription.renewed',
+				evenUid: 'paid-user',
+				externalSubscriptionId: 'sub_1',
+				startsAt: '2026-04-22T00:00:00.000Z',
+				endsAt: '2026-05-22T00:00:00.000Z',
+				status: 'active',
+				payload: { cycle: 'monthly' },
+			},
+			new Date('2026-04-22T00:00:00.000Z'),
+		);
+		const duplicate = await ingestPaymentWebhook(
+			gatedEnv,
+			{
+				id: 'evt_1',
+				provider: 'test-crypto',
+				type: 'subscription.renewed',
+				evenUid: 'paid-user',
+				externalSubscriptionId: 'sub_1',
+				startsAt: '2026-04-22T00:00:00.000Z',
+				endsAt: '2026-05-22T00:00:00.000Z',
+				status: 'active',
+				payload: { cycle: 'monthly' },
+			},
+			new Date('2026-04-22T00:00:00.000Z'),
+		);
+		const access = await resolveAccess(gatedEnv, { evenUid: 'paid-user' }, new Date('2026-04-23T00:00:00.000Z'));
+
+		expect(first.duplicate).toBe(false);
+		expect(duplicate.duplicate).toBe(true);
+		expect(access.accessAllowed).toBe(true);
+		expect(access.state).toBe('subscription_active');
+		expect(access.activeUntil).toBe('2026-05-22T00:00:00.000Z');
+	});
+
+	it('marks past-due subscriptions as not fully active in gated mode', async () => {
+		const gatedEnv: WorkerBindings = { ...baseEnv, ACCESS_PHASE: 'gated' };
+		await getOrCreateUser(gatedEnv, { evenUid: 'past-due-user' }, new Date('2026-04-01T00:00:00.000Z'));
+		await ingestPaymentWebhook(
+			gatedEnv,
+			{
+				id: 'evt_past_due',
+				provider: 'test-crypto',
+				type: 'subscription.past_due',
+				evenUid: 'past-due-user',
+				externalSubscriptionId: 'sub_past_due',
+				startsAt: '2026-04-22T00:00:00.000Z',
+				endsAt: '2026-05-22T00:00:00.000Z',
+				status: 'past_due',
+			},
+			new Date('2026-04-22T00:00:00.000Z'),
+		);
+
+		const access = await resolveAccess(gatedEnv, { evenUid: 'past-due-user' }, new Date('2026-04-23T00:00:00.000Z'));
+		expect(access.accessAllowed).toBe(false);
+		expect(access.state).toBe('subscription_past_due');
 	});
 
 	it('can reset and regenerate today locally on command', async () => {

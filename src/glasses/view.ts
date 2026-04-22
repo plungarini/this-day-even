@@ -1,7 +1,8 @@
 import type { TodayResponse } from '../../shared/types';
+import { formatUtcLongDate, toUtcDateString } from '../../shared/utc';
 import { formatClock } from '../lib/time';
 import type { HudLayoutDescriptor, HudPage, HudRenderState, HudViewState } from './types';
-import { alignRow, centerLine } from './utils';
+import { alignRow, alignThree, centerLine } from './utils';
 
 const HUD_WIDTH = 576;
 const HUD_HEIGHT = 288;
@@ -148,7 +149,8 @@ export function touchHudClock(state: HudViewState): HudViewState {
 }
 
 export function toHudRenderState(state: HudViewState): HudRenderState {
-	const header = alignRow(formatClock(state.now), 'This Day', BODY_WIDTH);
+	const dateLabel = formatUtcLongDate(state.payload?.dateUtc ?? toUtcDateString(state.now));
+	const header = alignThree(formatClock(state.now), dateLabel, 'This Day', BODY_WIDTH);
 
 	if (state.status === 'loading') {
 		return {
@@ -182,4 +184,3 @@ export function toHudRenderState(state: HudViewState): HudRenderState {
 		},
 	};
 }
-

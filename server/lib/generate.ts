@@ -7,6 +7,7 @@ import { deleteStoredArtifact, readStoredArtifact, writeStoredArtifact } from '.
 
 export interface WorkerBindings {
 	THIS_DAY_KV?: KVNamespace;
+	THIS_DAY_DB?: D1Database;
 	OPENROUTER_API_KEY?: string;
 	OPENROUTER_SCORER_MODEL?: string;
 	OPENROUTER_WRITER_MODEL?: string;
@@ -14,6 +15,9 @@ export interface WorkerBindings {
 	OPENROUTER_WRITER_THINKING?: string;
 	APP_BASE_URL?: string;
 	APP_NAME?: string;
+	ACCESS_PHASE?: 'free' | 'gated';
+	TRIAL_DAYS?: string;
+	PAYMENTS_PROVIDER?: string;
 }
 
 function leadTitle(candidate: WikimediaCandidate): string {

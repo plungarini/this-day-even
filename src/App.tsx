@@ -1,11 +1,13 @@
 import { AppShell, Button, Card, Divider, Loading } from 'even-toolkit/web';
 import { useEffect, useMemo, useState } from 'react';
-import type { SourceRecord, TodayResponse } from '../shared/types';
+import type { MeResponse, SourceRecord, TodayResponse } from '../shared/types';
+import { loadMe } from './api/account';
 import { formatUtcLongDate, secondsUntilNextUtcMidnight } from '../shared/utc';
 import { loadToday } from './api/today';
 import { getApiBaseUrl } from './config';
 import { formatFriendlyCountdown, formatLocalReleaseTime } from './lib/time';
 import { ensureBridgeStorageReady, readAndTrackProgress, type ProgressSnapshot } from './services/bridge-storage';
+import { ensureIdentityReady } from './services/identity';
 import type { ProgressMetric } from './types/progress';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -18,6 +20,54 @@ const BLANK_HREF = 'about:blank';
 
 function sourceIndex(sources: SourceRecord[]) {
 	return new Map(sources.map((source) => [source.id, source]));
+}
+
+function formatAccessUntil(value: string | null): string {
+	if (!value) return '';
+	return new Intl.DateTimeFormat(undefined, {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+	}).format(new Date(value));
+}
+
+function AccessCard({ account }: { account: MeResponse }) {
+	if (account.access.phase === 'free') return null;
+
+	const label =
+		account.access.state === 'trial_active'
+			? 'Trial active'
+			: account.access.state === 'subscription_active'
+				? 'Plan active'
+				: account.access.state === 'subscription_past_due'
+					? 'Payment issue'
+					: 'Access needed';
+
+	const detail =
+		account.access.state === 'trial_active'
+			? `Free trial ends ${formatAccessUntil(account.access.trialEndsAt)}`
+			: account.access.state === 'subscription_active'
+				? `Renews through ${formatAccessUntil(account.access.activeUntil)}`
+				: account.access.state === 'subscription_past_due'
+					? `Grace access through ${formatAccessUntil(account.access.activeUntil)}`
+					: account.access.trialEndsAt
+						? `Trial ended ${formatAccessUntil(account.access.trialEndsAt)}`
+						: 'Unlock the daily artifact to keep reading.';
+
+	return (
+		<Card className="td-panel td-access-card">
+			<div className="td-access-card-top">
+				<div>
+					<div className="td-panel-kicker">Access</div>
+					<h2 className="td-panel-title">Your daily access.</h2>
+				</div>
+				<div className={`td-access-badge is-${account.access.state}`}>
+					<span>{label}</span>
+				</div>
+			</div>
+			<p className="td-access-copy">{detail}</p>
+		</Card>
+	);
 }
 
 function ProgressCard({ progress }: { progress: ProgressSnapshot }) {
@@ -138,10 +188,28 @@ function SourceDrawer({ payload }: { payload: TodayResponse }) {
 	);
 }
 
+function ErrorCard({ error }: { error: string }) {
+	return (
+		<Card className="td-panel td-error-card">
+			<div className="td-error-copy">
+				<div className="td-panel-kicker">Temporary issue</div>
+				<h2>History missed its cue</h2>
+				<p>The daily artifact is still there, but the app could not load it cleanly right now.</p>
+			</div>
+			<div className="td-error-detail">
+				<div className="td-error-detail-label">Status</div>
+				<div className="td-error-detail-body">{error}</div>
+				<Button onClick={() => window.location.reload()}>Try again</Button>
+			</div>
+		</Card>
+	);
+}
+
 export default function App() {
 	const [loadState, setLoadState] = useState<LoadState>('loading');
 	const [payload, setPayload] = useState<TodayResponse | null>(null);
 	const [progress, setProgress] = useState<ProgressSnapshot | null>(null);
+	const [account, setAccount] = useState<MeResponse | null>(null);
 	const [error, setError] = useState('');
 	const [now, setNow] = useState(() => new Date());
 
@@ -155,9 +223,12 @@ export default function App() {
 			setLoadState('loading');
 			try {
 				await ensureBridgeStorageReady();
-				const response = await loadToday(getApiBaseUrl());
+				await ensureIdentityReady();
+				const apiBaseUrl = getApiBaseUrl();
+				const [response, accountResponse] = await Promise.all([loadToday(apiBaseUrl), loadMe(apiBaseUrl)]);
 				const nextProgress = await readAndTrackProgress(response.dateUtc);
 				setPayload(response);
+				setAccount(accountResponse);
 				setProgress(nextProgress);
 				setError('');
 				setLoadState('ready');
@@ -205,11 +276,7 @@ export default function App() {
 				) : null}
 
 				{loadState === 'error' ? (
-					<Card className="td-panel td-error-card">
-						<h2>History missed its cue</h2>
-						<p>{error}</p>
-						<Button onClick={() => window.location.reload()}>Reload</Button>
-					</Card>
+					<ErrorCard error={error} />
 				) : null}
 
 				{payload ? (
@@ -238,6 +305,7 @@ export default function App() {
 						</Card>
 
 						<TimerCard now={now} />
+						{account ? <AccessCard account={account} /> : null}
 						{progress ? <ProgressCard progress={progress} /> : null}
 
 						<section className="td-reading-zone" aria-label="Daily sections">
