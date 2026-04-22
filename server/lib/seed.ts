@@ -1,8 +1,16 @@
 import { paginateHudText } from '../../shared/paginate';
 import type { ArtifactEnrichment, FactScoring, SourceRecord, TodayResponse, WikimediaCandidate } from '../../shared/types';
 import type { ScorerResult, WriterDraft } from './schemas';
+import { isCleanGeneratedProse, sanitizeGeneratedProse } from './schemas';
 
 const SECTION_ORDER = ['moment', 'why-it-matters', 'context', 'aftermath', 'artifact'] as const;
+const SECTION_TITLES: Record<(typeof SECTION_ORDER)[number], string> = {
+	moment: 'The Moment',
+	'why-it-matters': 'Why it matters',
+	context: 'Context',
+	aftermath: 'Aftermath',
+	artifact: 'Artifact',
+};
 
 const WEIRD_TERMS = [
 	'first',
@@ -36,6 +44,47 @@ function leadPage(candidate: WikimediaCandidate) {
 
 function sentenceCase(text: string): string {
 	return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function displayTitle(value: string | undefined): string {
+	if (!value) return 'This event';
+	return value
+		.replace(/_/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function conciseFactLine(candidate: WikimediaCandidate, enrichment: ArtifactEnrichment): string {
+	return displayTitle(enrichment.description || leadPage(candidate)?.description || candidate.text);
+}
+
+function cleanWriterField(value: string | undefined): string {
+	if (!value) return '';
+	return sanitizeGeneratedProse(value);
+}
+
+function selectCleanField(primary: string | undefined, fallback: string): string {
+	const rawPrimary = primary?.trim() ?? '';
+	const cleanedPrimary = cleanWriterField(primary);
+	if (rawPrimary && isCleanGeneratedProse(rawPrimary) && cleanedPrimary && isCleanGeneratedProse(cleanedPrimary)) {
+		return cleanedPrimary;
+	}
+	const cleanedFallback = cleanWriterField(fallback);
+	return cleanedFallback || fallback.trim();
+}
+
+function selectCleanSection(
+	writerSection: WriterDraft['sections'][number] | undefined,
+	fallback: { title: string; webBody: string; sourceIds: string[] },
+) {
+	const rawBody = writerSection?.webBody?.trim() ?? '';
+	const cleanBody = cleanWriterField(writerSection?.webBody);
+	const hasGoodBody = rawBody && isCleanGeneratedProse(rawBody) && cleanBody && isCleanGeneratedProse(cleanBody);
+	return {
+		title: fallback.title,
+		webBody: hasGoodBody ? cleanBody : fallback.webBody,
+		sourceIds: hasGoodBody ? writerSection?.sourceIds ?? fallback.sourceIds : fallback.sourceIds,
+	};
 }
 
 export function heuristicScoreCandidate(candidate: WikimediaCandidate): FactScoring {
@@ -125,44 +174,44 @@ function ensureSectionDraft(
 	switch (id) {
 		case 'moment':
 			return {
-				title: 'The moment',
+				title: SECTION_TITLES.moment,
 				webBody: `${candidate.year}: ${candidate.text}`,
 				sourceIds: eventSource ? [eventSource.id] : [],
 			};
 		case 'why-it-matters':
 			return {
-				title: 'Why it matters',
+				title: SECTION_TITLES['why-it-matters'],
 				webBody:
 					enrichment.summary ||
 					lead?.extract ||
-					`The reason this sticks is its specificity: ${candidate.text.toLowerCase()}. It feels stranger than the broad textbook milestones people already know.`,
+					`${candidate.text} The event stands out because it is unusually specific and easy to picture.`,
 				sourceIds: [summarySource?.id, eventSource?.id].filter(Boolean) as string[],
 			};
 		case 'context':
 			return {
-				title: 'Context',
+				title: SECTION_TITLES.context,
 				webBody:
 					lead?.description
-						? `${lead.title} was already associated with ${lead.description}. ${lead.extract || ''}`.trim()
+						? `${displayTitle(lead.title)} was part of ${lead.description}. ${lead.extract || ''}`.trim()
 						: enrichment.summary || candidate.text,
 				sourceIds: [summarySource?.id, eventSource?.id].filter(Boolean) as string[],
 			};
 		case 'aftermath':
 			return {
-				title: 'Aftermath',
+				title: SECTION_TITLES.aftermath,
 				webBody:
 					enrichment.locSnippet?.snippet ||
-					`Even when the event itself is compact, the afterimage lingers through the article trail around ${lead?.title || 'the people involved'}.`,
+					`The event kept echoing in the reporting and records that followed, especially around ${displayTitle(lead?.title) || 'the people involved'}.`,
 				sourceIds: [locSource?.id, summarySource?.id, eventSource?.id].filter(Boolean) as string[],
 			};
 		case 'artifact':
 			return {
-				title: 'Artifact',
+				title: SECTION_TITLES.artifact,
 				webBody:
 					enrichment.openLibrary
-						? `Read later: ${enrichment.openLibrary.title}${enrichment.openLibrary.author ? ` by ${enrichment.openLibrary.author}` : ''}. ${enrichment.locSnippet ? `Archive: ${enrichment.locSnippet.title}.` : ''}`
+						? `${enrichment.openLibrary.title}${enrichment.openLibrary.author ? ` by ${enrichment.openLibrary.author}` : ''} offers a good path deeper.${enrichment.locSnippet ? ` Contemporary coverage also survives in ${enrichment.locSnippet.title}.` : ''}`
 						: enrichment.locSnippet
-							? `${enrichment.locSnippet.title}. ${enrichment.locSnippet.snippet}`
+							? `${enrichment.locSnippet.title} preserves contemporary reporting. ${enrichment.locSnippet.snippet}`
 							: enrichment.heroImage
 								? `A related image survives through Wikimedia Commons via ${lead?.title || 'the lead page'}.`
 								: `The artifact trail for this day runs through ${lead?.title || 'the source page'} and the linked research around it.`,
@@ -184,7 +233,7 @@ export function buildArtifactResponse(params: {
 }): TodayResponse {
 	const orderedSections = SECTION_ORDER.map((id) => {
 		const fallbackDraft = ensureSectionDraft(id, params.candidate, params.enrichment, params.sources);
-		const chosen = params.writerDraft?.sections.find((section) => section.id === id) ?? fallbackDraft;
+		const chosen = selectCleanSection(params.writerDraft?.sections.find((section) => section.id === id), fallbackDraft);
 		const labels = chosen.sourceIds
 			.map((sourceId) => params.sources.find((source) => source.id === sourceId))
 			.filter(Boolean)
@@ -210,10 +259,8 @@ export function buildArtifactResponse(params: {
 			slug: params.writerDraft?.slug || buildSlug(params.candidate),
 			year: params.candidate.year,
 			title: params.writerDraft?.title || sentenceCase(params.candidate.text),
-			deck:
-				params.writerDraft?.deck ||
-				`A sharp historical curiosity from ${params.key}, optimized for one compelling minute on glasses.`,
-			summary: params.writerDraft?.summary || params.enrichment.summary || params.candidate.text,
+			deck: selectCleanField(params.writerDraft?.deck, conciseFactLine(params.candidate, params.enrichment)),
+			summary: selectCleanField(params.writerDraft?.summary, params.enrichment.summary || params.candidate.text),
 			heroImage: params.enrichment.heroImage,
 			sections: orderedSections,
 			taxonomy: {
@@ -241,7 +288,7 @@ export function buildMinimalFallback(dateUtc: string, key: string): TodayRespons
 			summary: placeholderText,
 			sections: SECTION_ORDER.map((id) => ({
 				id,
-				title: id === 'moment' ? 'Moment' : sentenceCase(id.replace(/-/g, ' ')),
+				title: SECTION_TITLES[id],
 				webBody:
 					id === 'moment'
 						? placeholderText

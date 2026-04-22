@@ -31,3 +31,11 @@ export async function writeStoredArtifact(env: StorageEnv, monthDayKey: string, 
 	}
 }
 
+export async function deleteStoredArtifact(env: StorageEnv, monthDayKey: string): Promise<void> {
+	const key = buildArtifactStorageKey(monthDayKey);
+	inMemoryArtifacts.delete(key);
+	if (env.THIS_DAY_KV) {
+		await env.THIS_DAY_KV.delete(key);
+	}
+}
+

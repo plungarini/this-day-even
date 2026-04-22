@@ -9,6 +9,7 @@
     "emulator": "npx evenhub-simulator http://localhost:5173/",
     "pack": "npm run build && evenhub pack app.json dist -o this-day.ehpk",
     "qr": "node ../../scripts/qr.mjs",
+    "reset:today": "tsx scripts/reset-today.ts",
     "server": "wrangler dev --port 3001 --ip 0.0.0.0 --test-scheduled",
     "test": "vitest run",
     "test:watch": "vitest",

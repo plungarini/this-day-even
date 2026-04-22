@@ -150,7 +150,7 @@ export async function writeArtifactWithModel(
 				{
 					role: 'system',
 					content:
-						'You are writing the daily artifact for This Day, a single-fact UTC history ritual for Even Realities smart glasses. Write vivid, credible English copy. Use only the evidence provided. Keep it punchy, but not jokey. The five section ids must be: moment, why-it-matters, context, aftermath, artifact.',
+						'You are writing final app copy for This Day. Every string you return is shown directly to users in the webview and glasses HUD. Use only the evidence provided. Write vivid, credible English prose that is clean and presentation-ready. Do not write notes for editors, renderers, or other models. Do not mention prompts, sections, cards, pages, daily ritual, optimization, or glasses. Do not include OCR debris, publication headers, pagination markers, bracketed notes, markdown, HTML, raw URLs, hyperlink formatting, or provenance labels such as "Wikipedia summary", "Archive:", "Read later:", "Page 4", or "Image 4 of". Paraphrase source material by default. Short quotes are allowed only when they are brief, readable, and not header-like. Use the exact section ids and exact titles in this order: moment/The Moment, why-it-matters/Why it matters, context/Context, aftermath/Aftermath, artifact/Artifact. Field intent: title = presentation-ready title case; deck = one short editorial subtitle, never a product tagline; summary = one clean factual paragraph with no setup language; webBody = final reading copy only, one or two tight paragraphs, no headings inside the body. Section voice: moment = direct event statement; why-it-matters = interpretive but factual; context = background only; aftermath = consequences only; artifact = a prose lead into what survives to read or view, never a label dump.',
 				},
 				{
 					role: 'user',
@@ -162,13 +162,20 @@ export async function writeArtifactWithModel(
 							id: source.id,
 							kind: source.kind,
 							label: source.label,
-							note: source.note,
+							paraphraseNotes: source.note,
 						})),
 						defaultScoring: input.defaultScoring,
 						requirements: {
 							sectionOrder: ['moment', 'why-it-matters', 'context', 'aftermath', 'artifact'],
 							maxCategories: 5,
 							maxSectionSourceIds: 4,
+							exactSectionTitles: {
+								moment: 'The Moment',
+								'why-it-matters': 'Why it matters',
+								context: 'Context',
+								aftermath: 'Aftermath',
+								artifact: 'Artifact',
+							},
 						},
 					}),
 				},
