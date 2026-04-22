@@ -48,7 +48,7 @@ const TEXT_LAYOUT: HudLayoutDescriptor = {
 
 const SECTION_DISPLAY_TITLES: Record<HudPage['sectionId'], string> = {
 	moment: 'The Moment',
-	'why-it-matters': 'Why it Matters',
+	'why-it-matters': 'Why it matters',
 	context: 'Context',
 	aftermath: 'Aftermath',
 	artifact: 'Artifact',
