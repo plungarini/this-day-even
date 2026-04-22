@@ -45,6 +45,14 @@ const TEXT_LAYOUT: HudLayoutDescriptor = {
 	],
 };
 
+const SECTION_DISPLAY_TITLES: Record<HudPage['sectionId'], string> = {
+	moment: 'The Moment',
+	'why-it-matters': 'Why it matters',
+	context: 'Context',
+	aftermath: 'Aftermath',
+	artifact: 'Artifact',
+};
+
 function flattenPages(payload: TodayResponse): HudPage[] {
 	const pages: HudPage[] = [];
 	const globalTotal = payload.fact.sections.reduce((sum, section) => sum + section.hudPages.length, 0);
@@ -68,7 +76,7 @@ function flattenPages(payload: TodayResponse): HudPage[] {
 
 function buildFooter(page: HudPage): string {
 	return alignRow(
-		`${page.sectionTitle} • ${page.sectionPageIndex + 1}/${page.sectionPageTotal}`,
+		`${SECTION_DISPLAY_TITLES[page.sectionId]} • ${page.sectionPageIndex + 1}/${page.sectionPageTotal}`,
 		`${page.globalIndex + 1}/${page.globalTotal}`,
 		BODY_WIDTH,
 	);
