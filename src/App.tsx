@@ -5,6 +5,8 @@ import { loadMe } from './api/account';
 import { formatUtcLongDate, secondsUntilNextUtcMidnight } from '../shared/utc';
 import { loadToday } from './api/today';
 import { getApiBaseUrl } from './config';
+import { DebugPanel } from './debug/DebugPanel';
+import { useDebugLogs } from './debug/logs';
 import { formatFriendlyCountdown, formatLocalReleaseTime } from './lib/time';
 import { ensureBridgeStorageReady, readAndTrackProgress, type ProgressSnapshot } from './services/bridge-storage';
 import { ensureIdentityReady } from './services/identity';
@@ -188,7 +190,7 @@ function SourceDrawer({ payload }: { payload: TodayResponse }) {
 	);
 }
 
-function ErrorCard({ error }: { error: string }) {
+function ErrorCard({ error, canOpenDiagnostics, onOpenDiagnostics }: { error: string; canOpenDiagnostics: boolean; onOpenDiagnostics: () => void }) {
 	return (
 		<Card className="td-panel td-error-card">
 			<div className="td-error-copy">
@@ -199,19 +201,24 @@ function ErrorCard({ error }: { error: string }) {
 			<div className="td-error-detail">
 				<div className="td-error-detail-label">Status</div>
 				<div className="td-error-detail-body">{error}</div>
-				<Button onClick={() => window.location.reload()}>Try again</Button>
+				<div className="td-error-actions">
+					<Button onClick={() => window.location.reload()}>Try again</Button>
+					{canOpenDiagnostics ? <Button onClick={onOpenDiagnostics}>Open diagnostics</Button> : null}
+				</div>
 			</div>
 		</Card>
 	);
 }
 
 export default function App() {
+	const logs = useDebugLogs();
 	const [loadState, setLoadState] = useState<LoadState>('loading');
 	const [payload, setPayload] = useState<TodayResponse | null>(null);
 	const [progress, setProgress] = useState<ProgressSnapshot | null>(null);
 	const [account, setAccount] = useState<MeResponse | null>(null);
 	const [error, setError] = useState('');
 	const [now, setNow] = useState(() => new Date());
+	const [debugOpen, setDebugOpen] = useState(false);
 
 	useEffect(() => {
 		const timer = window.setInterval(() => setNow(new Date()), 1000);
@@ -222,17 +229,28 @@ export default function App() {
 		void (async () => {
 			setLoadState('loading');
 			try {
+				console.log('[App] starting boot sequence');
 				await ensureBridgeStorageReady();
 				await ensureIdentityReady();
 				const apiBaseUrl = getApiBaseUrl();
-				const [response, accountResponse] = await Promise.all([loadToday(apiBaseUrl), loadMe(apiBaseUrl)]);
+				console.log('[App] loading daily payload and account state', { apiBaseUrl });
+				const response = await loadToday(apiBaseUrl);
+				const accountResponse = await loadMe(apiBaseUrl).catch((accountError) => {
+					console.error('[App] account lookup failed during boot', accountError);
+					return null;
+				});
 				const nextProgress = await readAndTrackProgress(response.dateUtc);
 				setPayload(response);
 				setAccount(accountResponse);
 				setProgress(nextProgress);
 				setError('');
+				console.log('[App] boot complete', {
+					key: response.key,
+					hasAccount: Boolean(accountResponse),
+				});
 				setLoadState('ready');
 			} catch (loadError) {
+				console.error('[App] boot failed', loadError);
 				setError(loadError instanceof Error ? loadError.message : 'Could not load the daily artifact.');
 				setLoadState('error');
 			}
@@ -276,7 +294,7 @@ export default function App() {
 				) : null}
 
 				{loadState === 'error' ? (
-					<ErrorCard error={error} />
+					<ErrorCard error={error} canOpenDiagnostics={logs.length > 0} onOpenDiagnostics={() => setDebugOpen(true)} />
 				) : null}
 
 				{payload ? (
@@ -340,6 +358,16 @@ export default function App() {
 						<SourceDrawer payload={payload} />
 					</div>
 				) : null}
+
+				<button
+					type="button"
+					className="td-debug-hotspot"
+					aria-label="Open diagnostics"
+					onClick={() => setDebugOpen(true)}
+				>
+					debug
+				</button>
+				<DebugPanel open={debugOpen} setOpen={setDebugOpen} />
 			</div>
 		</AppShell>
 	);

@@ -1,7 +1,9 @@
 import type { TodayResponse } from '../../shared/types';
+import { readJsonOrThrow } from './http';
 import { getEvenIdentity } from '../services/identity';
 
 export async function loadToday(apiBaseUrl: string): Promise<TodayResponse> {
+	console.log('[API:today] resolving identity');
 	const identity = await getEvenIdentity();
 	const headers = new Headers({
 		Accept: 'application/json',
@@ -16,11 +18,19 @@ export async function loadToday(apiBaseUrl: string): Promise<TodayResponse> {
 		headers.set('X-Even-User-Country', identity.country);
 	}
 
+	console.log('[API:today] request start', {
+		apiBaseUrl,
+		hasEvenUid: Boolean(identity.evenUid),
+	});
 	const response = await fetch(`${apiBaseUrl}/api/today?ts=${Date.now()}`, {
 		cache: 'no-store',
 		headers,
 	});
-	if (!response.ok) throw new Error(`This Day API returned ${response.status}`);
-	return (await response.json()) as TodayResponse;
+	const payload = await readJsonOrThrow<TodayResponse>(response, 'today');
+	console.log('[API:today] request success', {
+		key: payload.key,
+		isFallback: payload.isFallback,
+	});
+	return payload;
 }
 
