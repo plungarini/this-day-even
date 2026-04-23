@@ -14,14 +14,45 @@ import type { ProgressMetric } from './types/progress';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
-function Pill({ children, tone = 'default' }: { children: string; tone?: 'default' | 'accent' | 'muted' }) {
-	return <span className={`td-pill td-pill-${tone}`}>{children}</span>;
+function Pill({ children, tone = 'default', href }: { children: string; tone?: 'default' | 'accent' | 'muted'; href?: string }) {
+	const className = `td-pill td-pill-${tone}`;
+	if (href && href !== BLANK_HREF) {
+		return (
+			<a className={className} href={href} target="_blank" rel="noreferrer">
+				{children}
+			</a>
+		);
+	}
+
+	return <span className={className}>{children}</span>;
 }
 
 const BLANK_HREF = 'about:blank';
 
 function sourceIndex(sources: SourceRecord[]) {
 	return new Map(sources.map((source) => [source.id, source]));
+}
+
+function getSourceHref(source: SourceRecord | undefined): string {
+	const url = source?.url?.trim();
+	return url && url !== BLANK_HREF ? url : BLANK_HREF;
+}
+
+function findSource(payload: TodayResponse, kinds: SourceRecord['kind'][]): SourceRecord | undefined {
+	for (const kind of kinds) {
+		const source = payload.sources.find((entry) => entry.kind === kind && getSourceHref(entry) !== BLANK_HREF);
+		if (source) return source;
+	}
+
+	return payload.sources.find((entry) => getSourceHref(entry) !== BLANK_HREF);
+}
+
+function getPrimaryStoryHref(payload: TodayResponse): string {
+	return getSourceHref(findSource(payload, ['wikipedia-summary', 'wikimedia-event', 'open-library', 'loc-archive', 'wikimedia-image']));
+}
+
+function getArtifactHref(payload: TodayResponse): string {
+	return getSourceHref(findSource(payload, ['open-library', 'loc-archive', 'wikimedia-image', 'wikipedia-summary', 'wikimedia-event']));
 }
 
 function formatAccessUntil(value: string | null): string {
@@ -153,8 +184,9 @@ function SectionCard({ payload, index, total }: { payload: TodayResponse; index:
 			{section.sourceRefs.length > 0 ? (
 				<div className="td-inline-sources">
 					{section.sourceRefs.map((ref) => {
+						const source = sources.get(ref.sourceId);
 						return (
-							<a key={ref.sourceId} href={BLANK_HREF} target="_blank" rel="noreferrer">
+							<a key={ref.sourceId} href={getSourceHref(source)} target="_blank" rel="noreferrer">
 								{ref.label}
 							</a>
 						);
@@ -177,7 +209,7 @@ function SourceDrawer({ payload }: { payload: TodayResponse }) {
 					<Card key={source.id} className="td-source-card">
 						<div className="td-source-card-top">
 							<span className="td-source-kind">{source.kind}</span>
-							<a href={BLANK_HREF} target="_blank" rel="noreferrer">
+							<a href={getSourceHref(source)} target="_blank" rel="noreferrer">
 								Open
 							</a>
 						</div>
@@ -299,6 +331,11 @@ export default function App() {
 
 				{payload ? (
 					<div className="td-page">
+						{(() => {
+							const primaryStoryHref = getPrimaryStoryHref(payload);
+							const artifactHref = getArtifactHref(payload);
+							return (
+								<>
 						<Card className="td-panel td-hero-card">
 							<div className="td-hero-date">
 								<div className="td-hero-date-badge">{formatUtcLongDate(payload.dateUtc)}</div>
@@ -311,7 +348,9 @@ export default function App() {
 								<div className="td-status-row">
 									<div className="td-pill-row">
 										{payload.fact.taxonomy.categories.map((category) => (
-											<Pill key={category}>{category}</Pill>
+											<Pill key={category} href={primaryStoryHref}>
+												{category}
+											</Pill>
 										))}
 									</div>
 								</div>
@@ -340,22 +379,44 @@ export default function App() {
 
 						{payload.fact.heroImage ? (
 							<Card className="td-panel td-image-card">
-								<div className="td-image-copy">
-									<div className="td-panel-kicker">Artifact</div>
-									<h2>{payload.fact.heroImage.alt}</h2>
-									<p>{payload.fact.heroImage.credit}</p>
-								</div>
-								<img
-									className="td-image"
-									src={payload.fact.heroImage.url}
-									alt={payload.fact.heroImage.alt}
-									width={payload.fact.heroImage.width}
-									height={payload.fact.heroImage.height}
-								/>
+								{artifactHref !== BLANK_HREF ? (
+									<a className="td-image-link" href={artifactHref} target="_blank" rel="noreferrer">
+										<div className="td-image-copy">
+											<div className="td-panel-kicker">Artifact</div>
+											<h2>{payload.fact.heroImage.alt}</h2>
+											<p>{payload.fact.heroImage.credit}</p>
+										</div>
+										<img
+											className="td-image"
+											src={payload.fact.heroImage.url}
+											alt={payload.fact.heroImage.alt}
+											width={payload.fact.heroImage.width}
+											height={payload.fact.heroImage.height}
+										/>
+									</a>
+								) : (
+									<>
+										<div className="td-image-copy">
+											<div className="td-panel-kicker">Artifact</div>
+											<h2>{payload.fact.heroImage.alt}</h2>
+											<p>{payload.fact.heroImage.credit}</p>
+										</div>
+										<img
+											className="td-image"
+											src={payload.fact.heroImage.url}
+											alt={payload.fact.heroImage.alt}
+											width={payload.fact.heroImage.width}
+											height={payload.fact.heroImage.height}
+										/>
+									</>
+								)}
 							</Card>
 						) : null}
 
 						<SourceDrawer payload={payload} />
+								</>
+							);
+						})()}
 					</div>
 				) : null}
 
