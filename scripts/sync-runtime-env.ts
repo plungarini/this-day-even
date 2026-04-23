@@ -3,7 +3,6 @@ import path from 'node:path';
 
 const appRoot = path.resolve(import.meta.dirname, '..');
 const wranglerPath = path.join(appRoot, 'wrangler.toml');
-const devVarsPath = path.join(appRoot, '.dev.vars');
 const runtimeEnvPath = path.join(appRoot, 'public', 'env.js');
 const runtimeEnvExamplePath = path.join(appRoot, 'public', 'env.example.js');
 
@@ -20,32 +19,18 @@ function readTomlString(content: string, sectionName: string, key: string): stri
 	return sectionBody.match(keyPattern)?.[1] ?? null;
 }
 
-function readDevVar(content: string, key: string): string | null {
-	const pattern = new RegExp(`^${key}\\s*=\\s*"?([^"\\r\\n]+)"?$`, 'm');
-	return content.match(pattern)?.[1] ?? null;
-}
-
 function buildRuntimeEnvFile(apiBaseUrl: string): string {
 	return `// Generated from Wrangler/app environment. Do not edit by hand.\nwindow.__THIS_DAY_ENV__ = {\n  API_BASE_URL: '${apiBaseUrl}'\n};\n`;
 }
 
-const mode = process.argv[2] === 'dev' ? 'dev' : 'prod';
 const wranglerToml = readFileIfExists(wranglerPath);
-const devVars = readFileIfExists(devVarsPath);
 
 const productionApiBaseUrl =
 	process.env.APP_BASE_URL?.trim() ||
 	readTomlString(wranglerToml, 'vars', 'APP_BASE_URL') ||
 	'https://this-day-even.plungarini.workers.dev';
 
-const developmentApiBaseUrl =
-	readDevVar(devVars, 'APP_BASE_URL') ||
-	readTomlString(wranglerToml, 'env.dev.vars', 'APP_BASE_URL') ||
-	'http://127.0.0.1:3001';
-
-const selectedApiBaseUrl = mode === 'dev' ? developmentApiBaseUrl : productionApiBaseUrl;
-
-writeFileSync(runtimeEnvPath, buildRuntimeEnvFile(selectedApiBaseUrl));
+writeFileSync(runtimeEnvPath, buildRuntimeEnvFile(productionApiBaseUrl));
 writeFileSync(runtimeEnvExamplePath, buildRuntimeEnvFile(productionApiBaseUrl));
 
-console.log(`[this-day] synced runtime env for ${mode}: ${selectedApiBaseUrl}`);
+console.log(`[this-day] synced runtime env for prod: ${productionApiBaseUrl}`);
