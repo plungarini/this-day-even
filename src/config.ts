@@ -14,8 +14,7 @@ function trimTrailingSlash(value: string): string {
 }
 
 export function getApiBaseUrl(): string {
-	const host = window.location.hostname;
-	if (host === 'localhost' || host === '127.0.0.1') {
+	if (import.meta.env.DEV) {
 		return LOCAL_API_BASE_URL;
 	}
 
@@ -24,4 +23,3 @@ export function getApiBaseUrl(): string {
 
 	return PRODUCTION_API_BASE_URL;
 }
-
