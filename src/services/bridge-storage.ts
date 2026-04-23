@@ -125,8 +125,12 @@ async function getBridge() {
 async function initStorageCache(): Promise<void> {
 	if (!initPromise) {
 		initPromise = (async () => {
+			console.log('[Progress] hydrating bridge storage');
 			const bridge = await getBridge();
-			if (!bridge || typeof bridge.getLocalStorage !== 'function') return;
+			if (!bridge || typeof bridge.getLocalStorage !== 'function') {
+				console.warn('[Progress] bridge storage unavailable during hydration');
+				return;
+			}
 			const value = await bridge.getLocalStorage(PROGRESS_STORAGE_KEY);
 			if (value) cache.set(PROGRESS_STORAGE_KEY, value);
 		})();
@@ -154,6 +158,10 @@ async function persistProgressState(next: StoredProgressState): Promise<void> {
 
 	const bridge = await getBridge();
 	if (bridge && typeof bridge.setLocalStorage === 'function') {
+		console.log('[Progress] persisting updated visit history', {
+			lastSeenDateUtc: next.lastSeenDateUtc,
+			visitCount: next.visitHistory?.length ?? 0,
+		});
 		void bridge.setLocalStorage(PROGRESS_STORAGE_KEY, serialized).catch(() => {});
 	}
 }

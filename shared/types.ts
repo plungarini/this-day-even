@@ -173,6 +173,17 @@ export interface PaywallResponse {
 	};
 }
 
+export interface ApiErrorPayload {
+	ok: false;
+	error: {
+		code: string;
+		message: string;
+		requestId?: string;
+		subsystem?: 'access' | 'd1' | 'artifact_generation' | 'upstream_fetch' | 'account' | 'payments' | 'unknown';
+		status?: number;
+	};
+}
+
 export interface WikimediaCandidatePage {
 	title: string;
 	normalizedTitle: string;

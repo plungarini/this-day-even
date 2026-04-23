@@ -215,4 +215,35 @@ describe('webview', () => {
 		await waitFor(() => expect(screen.getByText('Your daily access.')).toBeInTheDocument());
 		expect(screen.getByText(/Free trial ends/i)).toBeInTheDocument();
 	});
+
+	it('keeps rendering the daily artifact when /api/me fails with sanitized diagnostics', async () => {
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			if (String(input).includes('/api/me')) {
+				return new Response(
+					JSON.stringify({
+						ok: false,
+						error: {
+							code: 'THIS_DAY_ACCOUNT_UNAVAILABLE',
+							message: 'Account status could not be loaded right now.',
+							subsystem: 'd1',
+							status: 503,
+						},
+					}),
+					{
+						status: 503,
+						headers: { 'Content-Type': 'application/json' },
+					},
+				);
+			}
+
+			return new Response(JSON.stringify(samplePayload), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		});
+
+		render(<App />);
+		await waitFor(() => expect(screen.getByText(samplePayload.fact.title)).toBeInTheDocument());
+		expect(screen.queryByText('History missed its cue')).not.toBeInTheDocument();
+	});
 });

@@ -52,8 +52,12 @@ async function persistIdentity(identity: StoredIdentity): Promise<void> {
 export async function ensureIdentityReady(): Promise<void> {
 	if (!initPromise) {
 		initPromise = (async () => {
+			console.log('[Identity] hydrating cached identity');
 			const bridge = await getBridge();
-			if (!bridge || typeof bridge.getLocalStorage !== 'function') return;
+			if (!bridge || typeof bridge.getLocalStorage !== 'function') {
+				console.warn('[Identity] bridge storage unavailable during hydration');
+				return;
+			}
 			const value = await bridge.getLocalStorage(IDENTITY_STORAGE_KEY);
 			if (value) identityCache.set(IDENTITY_STORAGE_KEY, value);
 		})();
@@ -68,6 +72,7 @@ export async function getEvenIdentity(): Promise<EvenIdentity> {
 
 	if (bridge && typeof bridge.getUserInfo === 'function') {
 		try {
+			console.log('[Identity] requesting user info from bridge');
 			const user = await bridge.getUserInfo();
 			const nextIdentity: StoredIdentity = {
 				evenUid: user?.uid != null ? String(user.uid) : cached.evenUid,
@@ -81,7 +86,7 @@ export async function getEvenIdentity(): Promise<EvenIdentity> {
 				country: nextIdentity.country,
 			};
 		} catch {
-			// fall through to cached identity
+			console.warn('[Identity] bridge user info unavailable, falling back to cached identity');
 		}
 	}
 

@@ -1,7 +1,9 @@
 import type { MeResponse } from '../../shared/types';
+import { readJsonOrThrow } from './http';
 import { getEvenIdentity } from '../services/identity';
 
 export async function loadMe(apiBaseUrl: string): Promise<MeResponse> {
+	console.log('[API:me] resolving identity');
 	const identity = await getEvenIdentity();
 	const headers = new Headers({
 		Accept: 'application/json',
@@ -16,10 +18,18 @@ export async function loadMe(apiBaseUrl: string): Promise<MeResponse> {
 		headers.set('X-Even-User-Country', identity.country);
 	}
 
+	console.log('[API:me] request start', {
+		apiBaseUrl,
+		hasEvenUid: Boolean(identity.evenUid),
+	});
 	const response = await fetch(`${apiBaseUrl}/api/me?ts=${Date.now()}`, {
 		cache: 'no-store',
 		headers,
 	});
-	if (!response.ok) throw new Error(`This Day account API returned ${response.status}`);
-	return (await response.json()) as MeResponse;
+	const payload = await readJsonOrThrow<MeResponse>(response, 'me');
+	console.log('[API:me] request success', {
+		phase: payload.access.phase,
+		state: payload.access.state,
+	});
+	return payload;
 }
