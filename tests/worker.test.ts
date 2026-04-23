@@ -138,6 +138,32 @@ describe('worker pipeline', () => {
 		expect(secondPayload.fact.title).toBe(firstPayload.fact.title);
 	});
 
+	it('returns sanitized diagnostics instead of raw 500s for failing account routes', async () => {
+		const brokenEnv: WorkerBindings = {
+			...baseEnv,
+			THIS_DAY_DB: {
+				prepare() {
+					throw new Error('D1 exploded');
+				},
+			} as never,
+		};
+		const ctx = { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
+		const response = await worker.fetch(
+			new Request('http://127.0.0.1:3001/api/me', {
+				headers: { 'X-Even-User-Uid': '12345' },
+			}),
+			brokenEnv,
+			ctx,
+		);
+		const payload = (await response.json()) as { ok: false; error: { code: string; subsystem: string; message: string } };
+
+		expect(response.status).toBe(503);
+		expect(payload.ok).toBe(false);
+		expect(payload.error.code).toBe('THIS_DAY_ACCOUNT_UNAVAILABLE');
+		expect(payload.error.subsystem).toBe('d1');
+		expect(payload.error.message).not.toContain('sqlite');
+	});
+
 	it('creates a tracked user and starts the trial on the first identity-backed request', async () => {
 		vi.spyOn(globalThis, 'fetch')
 			.mockResolvedValueOnce(createJsonResponse(sampleWikimediaPayload))
